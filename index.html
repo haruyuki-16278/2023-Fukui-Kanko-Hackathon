@@ -1,0 +1,94 @@
+<!DOCTYPE html/>
+<html>
+  <head lang="ja">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="/" />
+    <title>クーポンdeGO</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="//unpkg.com/alpinejs" defer></script>
+  </head>
+  <body>
+    <header>
+      <h1>クーポンdeGO!</h1>
+    </header>
+    <main x-data="main">
+      <button @click="onClickSearch()">お店を探す</button>
+      <p>現在地: <span x-text="placename"></span></p>
+      <section x-show="searched">
+        <p>こちらのお店はいかがでしょうか？</p>
+        <h2 x-text="shop.name"></h2>
+        <p x-text="shop.address"></p>
+        <p>タクシーに電話する<br/><a :href="`tel:${taxi.tel}`" x-text="`${taxi.name} ${taxi.tel}`"></a></p>
+      </section>
+    </main>
+  </body>
+  <script>
+    async function loadCSVData(path) {
+      const response = await fetch(path);
+      const text = await response.text();
+      const data = text.trim().split('\n')
+        .map(line => line.split(',').map(x => x.trim()));
+      return data;
+    }
+
+    const geolocationAvailable = 'geolocation' in navigator;
+
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('main', () => ({
+          searched: false,
+          placename: '',
+          taxi: {tel: '', name: ''},
+          shop: {name: '', address: '', category: '', coords: {lat: -1, lon: -1}},
+
+          onClickSearch() {
+            if (!geolocationAvailable) return;
+            this.searched = true;
+
+            navigator.geolocation.getCurrentPosition(
+              async (position) => {
+                const coords = position.coords;
+                this.placename = await this.getPlaceName(coords.latitude, coords.longitude);
+                const taxi = (await loadCSVData('taxi.csv')).slice(1).filter((v => this.placename.includes(v[0])));
+                this.taxi.name = taxi[0][2];
+                this.taxi.tel = taxi[0][3];
+                console.log(this.placename.split(',')[1])
+                const shop = (await loadCSVData(`shop.csv`)).slice(1);
+                console.log(shop)
+                this.shop.name = shop[0][2];
+                this.shop.address = shop[0][0];
+                this.shop.category = shop[0][3];
+                this.shop.coords = this.getPlaceCoords(this.placename.split())
+              },
+              (e) => {console.log(e);}
+            );
+          },
+
+          /**
+           * OSMのAPIから場所情報を取得する関数
+           * @param {number} latitude
+           * @param {number} longitude
+           */
+          getPlaceName: async (latitude, longitude) => {
+            const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=14`;
+            const res = await fetch(url);
+            const data = JSON.parse(await res.text());
+            const [suburb, city] = data.display_name.split(', ').slice(0, 2);
+            return `${suburb}, ${city}`;
+          },
+          /**
+           * OSMのAPIから座標を取得する関数
+           * @param {string} address
+           */
+          getPlaceCoords: async (address) => {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${address}`;
+            const res = await fetch(url);
+            const data = JSON.parse(await res.text());
+            const lat = data[0]['lat'];
+            const lon = data[0]['lon'];
+            return {lat, lon};
+          }
+        }));
+    });
+  </script>
+</html>
