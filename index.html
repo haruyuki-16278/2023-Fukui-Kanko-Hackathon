@@ -57,7 +57,7 @@
                 this.shop.name = shop[0][2];
                 this.shop.address = shop[0][0];
                 this.shop.category = shop[0][3];
-                this.shop.coords = this.getPlaceCoords(this.placename.split())
+                this.shop.coords = await this.getPlaceCoords(this.placename.replace(/[0-9\-]*/g, ''))
               },
               (e) => {console.log(e);}
             );
